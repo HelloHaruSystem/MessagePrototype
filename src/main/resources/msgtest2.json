@@ -1,0 +1,15 @@
+{
+    "type": "CHAT_MESSAGE",
+    "id": "msg-0004",
+    "timestamp": "date",
+    "payload": {
+        "sender": "Peter",
+        "channel": "@Lasse",
+        "content": "Hej Lasse",
+        "encrypted": true,
+        "metadata": {
+            "dm": true,
+            "participants": ["Peter", "Lasse"]
+        }
+    }
+}
