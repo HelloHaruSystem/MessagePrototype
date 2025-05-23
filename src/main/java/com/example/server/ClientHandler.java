@@ -16,6 +16,8 @@ import com.example.MessageModels.Message;
 import com.example.MessageModels.MessageTypes;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonSyntaxException;
 
 public class ClientHandler implements Runnable {
     private static final AtomicInteger messageCounter = new AtomicInteger(0);
@@ -58,8 +60,43 @@ public class ClientHandler implements Runnable {
         }
     }
 
+    
     private void handleMessage(String jsonMessage) {
+        try {
+            JsonObject messageObject = this.gson.fromJson(jsonMessage, JsonObject.class);
+            String type = messageObject.get("type").getAsString();
 
+            System.out.println("Received message type: " + type + " from " + (this.username != null ? this.username : "unauthenticated client"));
+            MessageTypes msgType = MessageTypes.valueOf(type);
+
+            switch (msgType) {
+                case AUTH_REQUEST:
+                    
+                    break;
+                 
+                case CHAT_MESSAGE:
+
+                    break;
+
+                case CHANNEL_JOIN:
+
+                    break;
+
+                case CHANNEL_LEAVE:
+
+                    break;
+                
+                default:
+                    sendError("UNKNOWN_TYPE", "Unknown message type: " + type);
+                    break;
+            }
+
+        } catch (JsonSyntaxException e) {
+            sendError("INVALID_JSON", "Unknown message tye: " + e.getMessage());
+        } catch (Exception e) {
+            sendError("PROCESSING_ERROR", "Unknown message type: " + e.getMessage());
+            e.printStackTrace();
+        }
     }
 
     private void leaveChannel(String channel) {

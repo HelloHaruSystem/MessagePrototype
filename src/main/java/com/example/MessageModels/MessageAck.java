@@ -1,4 +1,4 @@
-package com.example;
+package com.example.MessageModels;
 
 public class MessageAck {
     private String messageId;
