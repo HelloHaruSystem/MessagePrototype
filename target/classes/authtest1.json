@@ -1,9 +1,0 @@
-{
-    "type": "AUTH_REQUEST",
-    "id": "msg-0001",
-    "timestamp": "date",
-    "payload": {
-        "username": "Peter",
-        "token": "jwt"
-    }
-}

@@ -1,8 +1,0 @@
-{
-    "type": "CHANNEL-JOIN",
-    "id": "msg-0003",
-    "timestamp": "date",
-    "payload": {
-        "channel": "cooking"
-    }
-}
