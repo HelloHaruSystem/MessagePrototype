@@ -1,6 +1,6 @@
 package com.example.MessageModels;
 
-public class ChannelLeave {
+public class ChannelLeave implements msg {
     private String channel;
     private String user;
         

@@ -3,7 +3,7 @@ package com.example.MessageModels;
 import java.util.List;
 import java.util.Map;
 
-public class MessageMetadata {
+public class MessageMetadata implements msg {
     private boolean dm;
     private List<String> participants;
     private Map<String, Object> extras;

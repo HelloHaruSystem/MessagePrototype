@@ -1,6 +1,6 @@
 package com.example.MessageModels;
 
-public class ChannelJoin {
+public class ChannelJoin implements msg {
     private String channel;
     private String user;
         

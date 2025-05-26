@@ -1,6 +1,6 @@
 package com.example.MessageModels;
 
-public class AuthRequest {
+public class AuthRequest implements msg {
     private String username;
     private String token;
 

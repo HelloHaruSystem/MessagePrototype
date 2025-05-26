@@ -1,6 +1,6 @@
 package com.example.MessageModels;
 
-public class MessageAck {
+public class MessageAck implements msg {
     private String messageId;
     private String status; // "received", "read", "error"
     private String errorMessage;

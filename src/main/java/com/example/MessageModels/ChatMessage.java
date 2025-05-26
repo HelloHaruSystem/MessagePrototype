@@ -1,6 +1,6 @@
 package com.example.MessageModels;
 
-public class ChatMessage {
+public class ChatMessage implements msg {
     private String sender;
     private String channel;
     private String content;

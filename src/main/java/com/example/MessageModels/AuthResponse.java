@@ -1,6 +1,6 @@
 package com.example.MessageModels;
 
-public class AuthResponse {
+public class AuthResponse implements msg {
     private boolean success;
     private String message;
     private String userId;

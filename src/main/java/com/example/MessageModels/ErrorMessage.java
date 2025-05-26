@@ -1,6 +1,6 @@
 package com.example.MessageModels;
 
-public class ErrorMessage {
+public class ErrorMessage implements msg {
     private String code;
     private String message;
     private String details;

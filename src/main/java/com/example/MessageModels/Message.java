@@ -1,6 +1,6 @@
 package com.example.MessageModels;
 
-public class Message {
+public class Message implements msg {
     private String type;
     private String id;
     private String timestamp;
