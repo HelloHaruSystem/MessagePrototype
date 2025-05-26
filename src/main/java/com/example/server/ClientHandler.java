@@ -14,6 +14,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import com.example.MessageModels.AuthResponse;
+import com.example.MessageModels.ChannelJoin;
 import com.example.MessageModels.ChatMessage;
 import com.example.MessageModels.ErrorMessage;
 import com.example.MessageModels.Message;
@@ -76,19 +77,25 @@ public class ClientHandler implements Runnable {
 
             switch (msgType) {
                 case AUTH_REQUEST:
-                    
+                    handleAuthRequest(messageObject);
                     break;
                  
                 case CHAT_MESSAGE:
-
+                    if (requireAuth()) {
+                        handleChatMessage(messageObject);
+                    }
                     break;
 
                 case CHANNEL_JOIN:
-
-                    break;
+                    if (requireAuth()) {
+                        handleChannelJoin(messageObject);
+                    }
+                    break;  
 
                 case CHANNEL_LEAVE:
-
+                    if (requireAuth()) {
+                        handleChannelLeave(messageObject);
+                    }
                     break;
                 
                 default:
@@ -113,7 +120,7 @@ public class ClientHandler implements Runnable {
     }
 
     private void handleAuthRequest(JsonObject messageObj) {
-        JsonObject payload = messageObj.get("payload");
+        JsonObject payload = messageObj.getAsJsonObject("payload");
         String requestedUsername = payload.get("username").getAsString();
         String token = payload.get("token").getAsString();
 
@@ -150,7 +157,7 @@ public class ClientHandler implements Runnable {
         JsonObject payload = messageObj.getAsJsonObject("payload");
         String channel = payload.get("channel").getAsString();
         String content = payload.get("content").getAsString();
-        boolean encrypted = payload.get("encrypted").getAsString();
+        boolean encrypted = payload.get("encrypted").getAsBoolean();
 
         // create chat message
         ChatMessage chatMsg = new ChatMessage(this.username, channel, content, encrypted);
@@ -175,7 +182,7 @@ public class ClientHandler implements Runnable {
         chatMsg.getMetadata().setParticipants(Arrays.asList(username, recipient));
 
         // send to recipient
-        recipientClient.sendMessage(MessageTypes.CHAT_MESSAGE, chatMsg);
+        recipientClient.sendMessage(MessageTypes.CHAT_MESSAGE.toString(), chatMsg);
 
         // send ACK to sender
         MessageAck ack = new MessageAck(generateMessageId(), "delivered");
@@ -213,6 +220,38 @@ public class ClientHandler implements Runnable {
         System.out.println("Channel " + channel + " - " + username + ": " + chatMsg.getContent());
     }
 
+    private void handleChannelJoin(JsonObject messageObj) {
+        JsonObject payload = messageObj.getAsJsonObject("payload");
+        String channel = payload.get("channel").getAsString();
+
+        joinChannel(channel);
+    }
+
+    private void handleChannelLeave(JsonObject messageObj) {
+        JsonObject payload = messageObj.getAsJsonObject("payload");
+        String channel = payload.get("channel").getAsString();
+
+        leaveChannel(channel);
+    }
+
+    private void joinChannel(String channel) {
+        if (joinedChannels.contains(channel)) {
+            sendError("ALREADY_IN_CHANNEL", "Already in channel " + channel);
+            return;
+        }
+
+        // add user to channel
+        channels.computeIfAbsent(channel, k -> ConcurrentHashMap.newKeySet()).add(username);
+        joinedChannels.add(channel);
+
+        // send join notification
+        ChannelJoin joinMsg = new ChannelJoin(channel, this.username);
+        sendMessage(MessageTypes.CHANNEL_JOIN.toString(), joinMsg);
+
+        broadcastToChannel(channel, MessageTypes.CHANNEL_JOIN.toString(), joinMsg, username);
+        System.out.println(username + " joined channel " + channel);
+    }
+
     private void leaveChannel(String channel) {
         if (!this.joinedChannels.contains(channel)) {
             sendError("NOT_IN_CHANNEL", "Not in channel" +  channel);
@@ -225,6 +264,20 @@ public class ClientHandler implements Runnable {
             channelUsers.remove(this.username);
             if(channelUsers.isEmpty()) {
                 channels.remove(channel);
+            }
+        }
+    }
+
+    private void broadcastToChannel(String channel, String messageType, Object payload, String excludeUser) {
+        Set<String> channelUsers = channels.get(channel);
+        if (channel != null) {
+            for (String user : channelUsers) {
+                if (!user.equals(excludeUser)) {
+                    ClientHandler client = clients.get(user);
+                    if (client != null) {
+                        client.sendMessage(messageType, payload);
+                    }
+                }
             }
         }
     }
