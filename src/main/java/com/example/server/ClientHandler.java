@@ -5,14 +5,19 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.PrintWriter;
 import java.net.Socket;
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import com.example.MessageModels.AuthResponse;
+import com.example.MessageModels.ChatMessage;
 import com.example.MessageModels.ErrorMessage;
 import com.example.MessageModels.Message;
+import com.example.MessageModels.MessageAck;
 import com.example.MessageModels.MessageTypes;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
@@ -41,7 +46,7 @@ public class ClientHandler implements Runnable {
         
         try {
             this.reader = new BufferedReader(new InputStreamReader(this.socket.getInputStream()));
-            this.writer = new PrintWriter(this.socket.getOutputStream());
+            this.writer = new PrintWriter(this.socket.getOutputStream(), true);
         } catch (IOException e) {
             System.out.println("Error setting up client handler: " + e.getMessage());
         }
@@ -97,6 +102,115 @@ public class ClientHandler implements Runnable {
             sendError("PROCESSING_ERROR", "Unknown message type: " + e.getMessage());
             e.printStackTrace();
         }
+    }
+
+    private boolean requireAuth() {
+        if (!authenticated) {
+            sendError("AUTH_REQUIRED", "Authentication required");
+            return false;
+        }
+        return true;
+    }
+
+    private void handleAuthRequest(JsonObject messageObj) {
+        JsonObject payload = messageObj.get("payload");
+        String requestedUsername = payload.get("username").getAsString();
+        String token = payload.get("token").getAsString();
+
+        // check if username is already logged in
+        if (clients.containsKey(requestedUsername)) {
+            AuthResponse response = new AuthResponse(false, "Username is already logged in", null);
+            sendMessage(MessageTypes.AUTH_RESPONSE.toString(), response);
+            return;
+        }
+
+        if ("jwt".equals(token)) {
+            this.username = requestedUsername;
+            this.userId = "user-" + UUID.randomUUID().toString();
+            this.authenticated = true;
+
+            // add to connected clients
+            clients.put(this.username, this);
+
+            // send response
+            AuthResponse response = new AuthResponse(true, "Authentication successful", this.userId);
+            sendMessage(MessageTypes.AUTH_RESPONSE.toString(), response);
+
+            // auto-join general channel
+            joinChannel("general");
+
+            System.out.println("User authenticated: " + this.username);
+        } else {
+            AuthResponse response = new AuthResponse(false, "Invalid credentials", null);
+            sendMessage(MessageTypes.AUTH_RESPONSE.toString(), response);
+        }
+    }
+
+    private void handleChatMessage(JsonObject messageObj) {
+        JsonObject payload = messageObj.getAsJsonObject("payload");
+        String channel = payload.get("channel").getAsString();
+        String content = payload.get("content").getAsString();
+        boolean encrypted = payload.get("encrypted").getAsString();
+
+        // create chat message
+        ChatMessage chatMsg = new ChatMessage(this.username, channel, content, encrypted);
+
+        if (channel.startsWith("@")) {
+            // direct message
+            handleDirectMessage(chatMsg, channel.substring(1));
+        } else {
+            handleChannelMessage(chatMsg, channel);
+        }
+    } 
+
+    private void handleDirectMessage(ChatMessage chatMsg, String recipient) {
+        ClientHandler recipientClient = clients.get(recipient);
+
+        if (recipientClient == null) {
+            sendError("USER_NOT_FOUND", "User " + recipient + "not found");
+            return;
+        }
+
+        chatMsg.getMetadata().setDm(true);
+        chatMsg.getMetadata().setParticipants(Arrays.asList(username, recipient));
+
+        // send to recipient
+        recipientClient.sendMessage(MessageTypes.CHAT_MESSAGE, chatMsg);
+
+        // send ACK to sender
+        MessageAck ack = new MessageAck(generateMessageId(), "delivered");
+        sendMessage(MessageTypes.MESSAGE_ACK.toString(), ack);
+
+        System.out.println("DM from " + username + " to " + recipient + ": " + chatMsg.getContent());
+    }
+
+    private void handleChannelMessage(ChatMessage chatMsg, String channel) {
+        if (!joinedChannels.contains(channel)) {
+            sendError("NT_IN_CHANNEL", "You are not in channel " + channel);
+            return;
+        }
+
+        Set<String> channelUsers = channels.get(channel);
+        if (channelUsers == null) {
+            sendError("CHANNEL_NOT_FOUND", "Channel " + channel + " not found");
+            return;
+        }
+
+        chatMsg.getMetadata().setDm(false);
+
+        // Broadcast to all users in channel
+        for (String user : channelUsers) {
+            ClientHandler client = clients.get(user);
+            if (client != null && !user.equals(username)) {
+                client.sendMessage(MessageTypes.CHAT_MESSAGE.toString(), chatMsg);
+            }
+        }
+
+        // send ACK to sender
+        MessageAck ack = new MessageAck(generateMessageId(), "delivered");
+        sendMessage(MessageTypes.MESSAGE_ACK.toString(), ack);    
+
+        System.out.println("Channel " + channel + " - " + username + ": " + chatMsg.getContent());
     }
 
     private void leaveChannel(String channel) {
